@@ -10,6 +10,7 @@
 	let map;
 	let markers = [];
 	let resizeObserver;
+	let resizeTimeout;
 	
 	// Watch for changes to selectedId from outside the component
 	$: if (map && map.getSource('locations')) {
@@ -35,6 +36,14 @@
 		]);
 	}
 	
+	// Debounce function to handle resize events
+	function debounceResize() {
+		if (resizeTimeout) clearTimeout(resizeTimeout);
+		resizeTimeout = setTimeout(() => {
+			if (map) map.resize();
+		}, 100); // 100ms delay - this should be after most CSS transitions
+	}
+	
 	onMount(() => {
 		if (!mapContainer) return;
 		
@@ -42,7 +51,8 @@
 			container: mapContainer,
 			style: 'https://api.maptiler.com/maps/0195b586-7726-7e5a-9540-34bcd35b6fd1/style.json?key=smD4WHiCeTEFri6vpiIm',
 			center: [12.4964, 41.9028], // Center of Rome
-			zoom: 11 // Closer zoom to see Rome's details
+			zoom: 11, // Closer zoom to see Rome's details
+			preserveDrawingBuffer: true // This helps with smoother rendering during resize
 		});
 		
 		// Add navigation controls
@@ -175,27 +185,53 @@
 			map.on('click', 'clusters', (e) => {
 				const features = map.queryRenderedFeatures(e.point, {
 					layers: ['clusters']
-				});
-				const clusterId = features[0].properties.cluster_id;
-				map.getSource('locations').getClusterExpansionZoom(clusterId, (err, zoom) => {
-					if (err) return;
+					});
 					
-					map.easeTo({
-						center: features[0].geometry.coordinates,
-						zoom: zoom
+					if (!features.length || !features[0].properties.cluster_id) return;
+					
+					const clusterId = features[0].properties.cluster_id;
+					
+					// Optional: show a loading indicator or cursor change
+					map.getCanvas().style.cursor = 'wait';
+					
+					map.getSource('locations').getClusterExpansionZoom(clusterId, (err, zoom) => {
+						// Reset cursor regardless of success or error
+						map.getCanvas().style.cursor = '';
+						
+						if (err) {
+							console.error("Error expanding cluster:", err);
+							return;
+						}
+						
+						// Smooth animation to the cluster
+						map.easeTo({
+							center: features[0].geometry.coordinates,
+							zoom: zoom,
+							duration: 800, // Animation duration in milliseconds
+							easing: (t) => t * (2 - t) // Ease-out function for smoother animation
+						});
 					});
 				});
-			});
+				
+				// Add a visual indicator on hover for clusters too
+				map.on('mouseenter', 'clusters', () => {
+					map.getCanvas().style.cursor = 'pointer';
+				});
+				
+				map.on('mouseleave', 'clusters', () => {
+					map.getCanvas().style.cursor = '';
+				});
 		}
 		
-		// Create a ResizeObserver to handle map resizing
+		// Create a ResizeObserver to handle map resizing with debouncing
 		resizeObserver = new ResizeObserver(() => {
-			if (map) map.resize();
+			debounceResize();
 		});
 		
 		resizeObserver.observe(mapContainer);
 		
 		return () => {
+			if (resizeTimeout) clearTimeout(resizeTimeout);
 			map.remove();
 			if (resizeObserver) {
 				resizeObserver.disconnect();
@@ -204,6 +240,7 @@
 	});
 	
 	onDestroy(() => {
+		if (resizeTimeout) clearTimeout(resizeTimeout);
 		if (map) map.remove();
 		if (resizeObserver) {
 			resizeObserver.disconnect();
@@ -219,6 +256,7 @@
 		min-height: 500px;
 		border-radius: 8px;
 		overflow: hidden;
+		will-change: transform; /* Helps with GPU acceleration */
 	}
 	
 	:global(.custom-popup) {

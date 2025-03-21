@@ -1,4 +1,4 @@
-![Logo del progetto](./static/logo.svg)
+![Logo del progetto](./static/cps.svg)
 
 # I nostri spazi 
 

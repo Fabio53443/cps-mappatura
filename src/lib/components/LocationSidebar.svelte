@@ -136,6 +136,18 @@
 			</svg>
 			Lat: {location.latitude.toFixed(6)}, Lng: {location.longitude.toFixed(6)}
 		</div>
+		
+		<a 
+			href="https://www.google.com/maps/dir/?api=1&destination={location.latitude},{location.longitude}" 
+			target="_blank" 
+			rel="noopener noreferrer" 
+			class="mt-3 flex items-center justify-center p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+				<path fill-rule="evenodd" d="M12 1.586l-4 4v12.828l4-4V1.586zM3.707 3.293A1 1 0 002 4v10a1 1 0 00.293.707L6 18.414V5.586L3.707 3.293zM17.707 5.293L14 1.586v12.828l2.293 2.293A1 1 0 0018 16V6a1 1 0 00-.293-.707z" clip-rule="evenodd" />
+			</svg>
+			Naviga qui
+		</a>
 	</div>
 {/if}
 
@@ -143,6 +155,7 @@
 	.sidebar {
 		height: 100%;
 		width: 100%;
+		transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
 	}
 	
 	@media (min-width: 768px) {
