@@ -8,19 +8,31 @@ const sampleLocations = [
 		name: 'Colosseum',
 		description: 'An ancient amphitheater in the center of Rome, Italy.',
 		latitude: 41.8902,
-		longitude: 12.4922
+		longitude: 12.4922,
+		street: 'Via del Colosseo  1',
+		municipio: 'I',
+		managedBy: 'Comune di Roma',
+		link: 'comune.roma.it'
 	},
 	{
-		name: 'Eiffel Tower',
-		description: 'A wrought-iron lattice tower on the Champ de Mars in Paris, France.',
-		latitude: 48.8584,
-		longitude: 2.2945
+		name: 'Cavour',
+		description: 'Scuola di mezzi megalomani',
+		latitude: 41.8932,
+		longitude: 12.4902,
+		street: 'Via delle Carine 1',
+		municipio: 'I',
+		managedby: 'Collettivo Tommie Smith',
+		link: 'instagram.com/cts'
 	},
 	{
-		name: 'Sagrada Familia',
-		description: 'A large unfinished Roman Catholic minor basilica in Barcelona, Spain.',
-		latitude: 41.4036,
-		longitude: 2.1744
+		name: 'Spin Time Labs',
+		description: 'Posto pazzo sgravato',
+		latitude: 41.8908,
+		longitude: 12.511,
+		street: 'Via di S. Croce in Gerusalemme, 55',
+		municipio: 'II',
+		managedby: 'gli occupanti pazzerelli di spin time',
+		link: 'instagram.com/spintimelabs'
 	}
 ];
 

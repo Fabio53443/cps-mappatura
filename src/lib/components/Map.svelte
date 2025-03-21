@@ -4,11 +4,36 @@
 	
 	export let locations = [];
 	export let onMarkerClick = (location) => {};
+	export let selectedId = null; // Add prop for two-way binding
 	
 	let mapContainer;
 	let map;
 	let markers = [];
 	let resizeObserver;
+	
+	// Watch for changes to selectedId from outside the component
+	$: if (map && map.getSource('locations')) {
+		updateMapPointStyling();
+	}
+	
+	// Function to update map point styling based on selected state
+	function updateMapPointStyling() {
+		if (!map || !map.getSource('locations')) return;
+		
+		map.setPaintProperty('unclustered-point', 'circle-color', [
+			'case',
+			['==', ['get', 'id'], selectedId],
+			'#93c5fd', // Light blue for selected point
+			'#3b82f6'  // Default blue for unselected points
+		]);
+		
+		map.setPaintProperty('unclustered-point', 'circle-radius', [
+			'case',
+			['==', ['get', 'id'], selectedId],
+			15, // Bigger radius for selected point
+			10  // Default radius for unselected points
+		]);
+	}
 	
 	onMount(() => {
 		if (!mapContainer) return;
@@ -96,8 +121,20 @@
 				source: 'locations',
 				filter: ['!', ['has', 'point_count']],
 				paint: {
-					'circle-color': '#3b82f6',
-					'circle-radius': 10,
+					// Change circle color based on selection state
+					'circle-color': [
+						'case',
+						['==', ['get', 'id'], selectedId],
+						'#93c5fd', // Light blue for selected point
+						'#3b82f6'  // Default blue for unselected points
+					],
+					// Change circle radius based on selection state
+					'circle-radius': [
+						'case',
+						['==', ['get', 'id'], selectedId],
+						15, // Bigger radius for selected point
+						10  // Default radius for unselected points
+					],
 					'circle-stroke-width': 2,
 					'circle-stroke-color': '#fff'
 				}
@@ -125,14 +162,13 @@
 				const { id, name } = e.features[0].properties;
 				const location = locations.find(loc => loc.id === id);
 				
-				new maplibregl.Popup({
-					closeButton: false,
-					className: 'custom-popup'
-				})
-					.setLngLat(coordinates)
-					.setHTML(`<strong>${name}</strong>`)
-					.addTo(map);
+				// Update the selected location
+				selectedId = id;
 				
+				 // Explicitly call the update function to ensure styling changes are applied
+				updateMapPointStyling();
+				
+				// Call the click handler
 				onMarkerClick(location);
 			});
 			

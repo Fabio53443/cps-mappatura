@@ -66,11 +66,11 @@
 </script>
 
 <svelte:head>
-	<title>CPS Mappatura</title>
+	<title>I nostri spazi</title>
 </svelte:head>
 
 <div class="relative">
-	<h2 class="text-2xl font-bold mb-6">Explore Locations</h2>
+	<h2 class="text-2xl font-bold mb-6">Scopri gli spazi dedicati ai giovani</h2>
 	
 	{#if error}
 		<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4" role="alert">

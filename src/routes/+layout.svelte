@@ -89,7 +89,10 @@
 	<header class="py-3">
 		<div class="container mx-auto px-4">
 			<div class="flex justify-between items-center">
-				<h1 class="text-2xl font-bold">CPS Mappatura</h1>
+				<div class="flex items-center gap-3">
+					<img src="/logo.svg" alt="Logo" class="h-10 w-auto" />
+					<h1 class="text-2xl font-bold">I nostri Spazi</h1>
+				</div>
 				
 				<div class="hidden md:block relative">
 					<input 
@@ -168,7 +171,7 @@
 	
 	<footer class="py-4">
 		<div class="container mx-auto px-4 text-center text-sm">
-			&copy; {new Date().getFullYear()} CPS Mappatura
+			&copy; {new Date().getFullYear()} Consulta Provinciale degli Studenti di Roma / Comune di Roma
 		</div>
 	</footer>
 </div>
