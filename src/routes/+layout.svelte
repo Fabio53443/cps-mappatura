@@ -5,23 +5,49 @@
 	let { children } = $props();
 	
 	let showMobileMenu = $state(false);
+	let isScrolled = $state(false);
+	let scrollTimeout;
 	
 	function toggleMobileMenu() {
 		showMobileMenu = !showMobileMenu;
 	}
 	
 	onMount(() => {
-		// No search functionality here anymore
+		const handleScroll = () => {
+			// Clear any existing timeout
+			if (scrollTimeout) clearTimeout(scrollTimeout);
+			
+			// Set a timeout to debounce the scroll event
+			scrollTimeout = setTimeout(() => {
+				// Add a small buffer to prevent jitter
+				if (window.scrollY > 25) {
+					isScrolled = true;
+				} else if (window.scrollY < 15) {
+					isScrolled = false;
+				}
+				// If between 15-25px, keep the current state to prevent toggling
+			}, 50);
+		};
+		
+		window.addEventListener('scroll', handleScroll);
+		
+		return () => {
+			window.removeEventListener('scroll', handleScroll);
+			if (scrollTimeout) clearTimeout(scrollTimeout);
+		};
 	});
 </script>
 
 <div class="min-h-screen flex flex-col font-['DM_Sans',sans-serif]">
-	<header class="py-3 font-['DM_Sans',sans-serif]">
+	<header class="py-3 sticky top-0 z-50 bg-white transition-all duration-300 font-['DM_Sans',sans-serif] {isScrolled ? 'shadow-md py-1' : ''}" 
+		aria-label="Header">
 		<div class="container mx-auto px-4">
 			<div class="flex justify-center items-center relative">
 				<a 
 					href="/progetto" 
-					class="absolute left-4 hidden md:block font-bold text-black hover:text-[#c2273d] transition-colors font-['DM_Sans',sans-serif] relative group"
+					target="_self" 
+					rel="noopener noreferrer"
+					class="absolute left-4 hidden md:block font-bold text-black hover:text-[#c2273d] transition-colors font-['DM_Sans',sans-serif] group"
 				>
 					<span>Il Progetto</span>
 					<span class="absolute left-0 bottom-0 w-0 h-[2px] bg-[#3059a7] group-hover:w-full transition-all duration-300 ease-in-out"></span>
@@ -29,7 +55,8 @@
 				
 				<div class="flex items-center gap-3">
 					<a href="/">
-						<img src="/nostrispazi.svg" alt="Logo" class="h-20 w-auto" />
+						<img src="/nostrispazi.svg" alt="Logo" 
+							class="transition-all duration-300 {isScrolled ? 'h-12' : 'h-20'} w-auto" />
 					</a>
 				</div>
 				
@@ -93,9 +120,33 @@
 		{@render children()}
 	</main>
 	
-	<footer class="py-4">
-		<div class="container mx-auto px-4 text-center text-sm">
-			&copy; {new Date().getFullYear()} Consulta Provinciale degli Studenti di Roma / Comune di Roma
+	<footer class="py-8 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+		<div class="container mx-auto px-4">
+			<div class="flex flex-col md:flex-row items-center justify-between gap-6">
+				<div class="flex items-center gap-4">
+					<img src="/cps.svg" alt="CPS Logo" class="h-12 w-auto" />
+					<div class="flex flex-col">
+						<span class="font-bold text-gray-800">Consulta Provinciale degli Studenti di Roma</span>
+						<a 
+							href="https://cpsroma.it" 
+							target="_blank" 
+							rel="noopener noreferrer"
+							class="text-[#c2273d] hover:underline"
+						>
+							cpsroma.it
+						</a>
+					</div>
+				</div>
+				
+				<div class="text-center md:text-right max-w-md">
+					<p class="text-sm text-gray-600 mb-2">
+						Questo progetto è stato elaborato dalla commissione Diritto allo Studio nel biennio 2023/2025, con il contributo dell'Assessorato alle Politiche Sociali e alla Salute del Comune di Roma.
+					</p>
+					<p class="text-sm text-gray-500">
+						&copy; {new Date().getFullYear()} Consulta Provinciale degli Studenti di Roma
+					</p>
+				</div>
+			</div>
 		</div>
 	</footer>
 </div>

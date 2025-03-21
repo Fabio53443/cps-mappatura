@@ -1,6 +1,7 @@
 <script>
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, afterUpdate } from 'svelte';
 	import maplibregl from 'maplibre-gl';
+	import { tipoValues, tipoColorMap, getColorForTipo, defaultColor } from '$lib/config/tipoConfig';
 	
 	export let locations = [];
 	export let onMarkerClick = (location) => {};
@@ -11,22 +12,81 @@
 	let markers = [];
 	let resizeObserver;
 	let resizeTimeout;
+	let previousLocationsLength = 0;
+	let previousLocations = [];
 	
 	// Watch for changes to selectedId from outside the component
 	$: if (map && map.getSource('locations')) {
 		updateMapPointStyling();
 	}
 	
+	// Watch for changes in the filtered locations
+	$: if (map && locations && 
+		(previousLocationsLength !== locations.length || 
+		JSON.stringify(locations.map(l => l.id).sort()) !== JSON.stringify(previousLocations))) {
+		updateLocationsSource();
+		previousLocationsLength = locations.length;
+		previousLocations = locations.map(l => l.id).sort();
+	}
+	
+	// Function to update the map source with filtered locations
+	function updateLocationsSource() {
+		if (!map || !map.getSource('locations')) return;
+		
+		console.log("Updating map with filtered locations:", locations.length);
+		
+		const geojson = {
+			type: 'FeatureCollection',
+			features: locations.map(loc => ({
+				type: 'Feature',
+				properties: { 
+					id: loc.id, 
+					name: loc.name,
+					tipo: loc.tipo || 'default'
+				},
+				geometry: {
+					type: 'Point',
+					coordinates: [loc.longitude, loc.latitude]
+				}
+			}))
+		};
+		
+		map.getSource('locations').setData(geojson);
+	}
+	
 	// Function to update map point styling based on selected state
 	function updateMapPointStyling() {
 		if (!map || !map.getSource('locations')) return;
 		
-		map.setPaintProperty('unclustered-point', 'circle-color', [
+		console.log("Updating map point styling");
+		
+		// Build a simpler match expression
+		const matchExpression = ['match', ['get', 'tipo']];
+		
+		// Add each tipo exactly as it appears in the data
+		Object.keys(tipoColorMap).forEach(tipo => {
+			matchExpression.push(tipo, tipoColorMap[tipo]);
+		});
+		
+		// Add the default color as the last value in the match expression
+		matchExpression.push(defaultColor);
+		
+		console.log("Match expression:", JSON.stringify(matchExpression));
+		
+		// Fallback to a simple static color if match expression is too complex
+		const circleColor = [
 			'case',
 			['==', ['get', 'id'], selectedId],
 			'#93c5fd', // Light blue for selected point
-			'#3b82f6'  // Default blue for unselected points
-		]);
+			['coalesce', 
+				// Try to match tipo first
+				matchExpression,
+				// Fallback to default color if match fails
+				['literal', defaultColor]
+			]
+		];
+		
+		map.setPaintProperty('unclustered-point', 'circle-color', circleColor);
 		
 		map.setPaintProperty('unclustered-point', 'circle-radius', [
 			'case',
@@ -44,8 +104,18 @@
 		}, 100); // 100ms delay - this should be after most CSS transitions
 	}
 	
+	// Add more detailed debug function
+	function logLocationTypes() {
+		console.log("Available tipos in locations:", locations.map(loc => loc.tipo));
+		console.log("tipoColorMap:", tipoColorMap);
+		console.log("Sample location:", locations.length > 0 ? locations[0] : "No locations");
+	}
+	
 	onMount(() => {
 		if (!mapContainer) return;
+		
+		// Log locations tipos for debugging
+		logLocationTypes();
 		
 		map = new maplibregl.Map({
 			container: mapContainer,
@@ -68,13 +138,21 @@
 		});
 		
 		function addLayers() {
+			console.log("Adding map layers, locations count:", locations.length);
+			previousLocationsLength = locations.length;
+			previousLocations = locations.map(l => l.id).sort();
+			
 			map.addSource('locations', {
 				type: 'geojson',
 				data: {
 					type: 'FeatureCollection',
 					features: locations.map(loc => ({
 						type: 'Feature',
-						properties: { id: loc.id, name: loc.name },
+						properties: { 
+							id: loc.id, 
+							name: loc.name,
+							tipo: loc.tipo || 'default'
+						},
 						geometry: {
 							type: 'Point',
 							coordinates: [loc.longitude, loc.latitude]
@@ -92,15 +170,7 @@
 				source: 'locations',
 				filter: ['has', 'point_count'],
 				paint: {
-					'circle-color': [
-						'step',
-						['get', 'point_count'],
-						 '#3b82f6', // Primary blue
-						100,
-						'#10b981', // Green
-						750,
-						'#f59e0b' // Yellow
-					],
+					'circle-color': '#3b82f6', // Always blue for clusters as requested
 					'circle-radius': [
 						'step',
 						['get', 'point_count'],
@@ -131,24 +201,18 @@
 				source: 'locations',
 				filter: ['!', ['has', 'point_count']],
 				paint: {
-					// Change circle color based on selection state
-					'circle-color': [
-						'case',
-						['==', ['get', 'id'], selectedId],
-						'#93c5fd', // Light blue for selected point
-						'#3b82f6'  // Default blue for unselected points
-					],
-					// Change circle radius based on selection state
-					'circle-radius': [
-						'case',
-						['==', ['get', 'id'], selectedId],
-						15, // Bigger radius for selected point
-						10  // Default radius for unselected points
-					],
+						// Use a simple static color for initial rendering to debug
+					'circle-color': '#3b82f6',
+					'circle-radius': 10,
 					'circle-stroke-width': 2,
 					'circle-stroke-color': '#fff'
 				}
 			});
+			
+			// Apply the styling after a short delay to ensure the layer is fully loaded
+			setTimeout(() => {
+				updateMapPointStyling();
+			}, 500);
 			
 			// Add hover effect
 			map.on('mouseenter', 'unclustered-point', () => {

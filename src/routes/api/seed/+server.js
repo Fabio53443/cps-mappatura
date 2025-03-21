@@ -1,13 +1,15 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { location, image } from '$lib/server/db/schema';
+import { tipo } from '$lib/server/db/schema.js';
 
 // Sample data for development
 const sampleLocations = [
 	{
-		name: 'Colosseum',
-		description: 'An ancient amphitheater in the center of Rome, Italy.',
+		name: 'Colosseo',
+		description: 'il coso a forma di arena di verona.',
 		latitude: 41.8902,
+		tipo: 'Altro',
 		longitude: 12.4922,
 		street: 'Via del Colosseo  1',
 		municipio: 'I',
@@ -21,6 +23,7 @@ const sampleLocations = [
 		longitude: 12.4902,
 		street: 'Via delle Carine 1',
 		municipio: 'I',
+		tipo: 'Biblioteca/Aula Studio',
 		managedby: 'Collettivo Tommie Smith',
 		link: 'instagram.com/cts'
 	},
@@ -31,6 +34,7 @@ const sampleLocations = [
 		longitude: 12.511,
 		street: 'Via di S. Croce in Gerusalemme, 55',
 		municipio: 'II',
+		tipo: 'Altro',
 		managedby: 'gli occupanti pazzerelli di spin time',
 		link: 'instagram.com/spintimelabs'
 	}

@@ -1,4 +1,6 @@
 <script>
+	import { getColorForTipo } from '$lib/config/tipoConfig';
+	
 	export let location = null;
 	export let images = [];
 	export let onClose = () => {};
@@ -17,12 +19,37 @@
 		if (!hasImages) return;
 		currentImageIndex = (currentImageIndex - 1 + images.length) % images.length;
 	}
+	
+	// Function to extract domain from URL
+	function extractDomain(url) {
+		try {
+			// Add protocol if missing
+			if (!url.startsWith('http://') && !url.startsWith('https://')) {
+				url = 'https://' + url;
+			}
+			
+			const domain = new URL(url).hostname;
+			return domain.replace(/^www\./, ''); // Remove www. if present
+		} catch (e) {
+			return url; // Return original string if URL parsing fails
+		}
+	}
 </script>
 
 {#if location}
 	<div class="sidebar bg-white p-5 overflow-y-auto shadow-lg rounded-lg">
-		<div class="flex justify-between items-center mb-5">
-			<h2 class="text-xl font-bold">{location.name}</h2>
+		<div class="flex justify-between items-start mb-2">
+			<div>
+				<h2 class="text-xl font-bold">{location.name}</h2>
+				{#if location.tipo}
+					<div 
+						class="tipo-pill inline-block px-3 py-1 mt-2 rounded-full text-white text-xs font-medium"
+						style="background-color: {getColorForTipo(location.tipo)};"
+					>
+						{location.tipo}
+					</div>
+				{/if}
+			</div>
 			<button 
 				class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
 				on:click={onClose}
@@ -122,8 +149,17 @@
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
 						<path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd" />
 					</svg>
-					<a href={location.link} target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">
-						Visit Website
+					<a 
+						href={location.link.startsWith('http') ? location.link : 'https://' + location.link} 
+						target="_blank" 
+						rel="noopener noreferrer" 
+						class="text-blue-600 hover:underline group"
+					>
+						Visita sito <span class="text-gray-500 font-normal">({extractDomain(location.link)})</span>
+						<svg class="inline-block h-3 w-3 ml-1 text-gray-400 group-hover:text-blue-500 transition-colors transform translate-y-[-2px]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+							<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
+							<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
+						</svg>
 					</a>
 				</div>
 			{/if}
@@ -155,7 +191,10 @@
 	.sidebar {
 		height: 100%;
 		width: 100%;
-		transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		will-change: transform, opacity;
+		transform: translateZ(0);
+		backface-visibility: hidden;
 	}
 	
 	@media (min-width: 768px) {
@@ -166,7 +205,58 @@
 	
 	@media (min-width: 1024px) {
 		.sidebar {
-			max-width: 400px;
+			max-width: 100%;
 		}
+	}
+	
+	.image-container img {
+		will-change: opacity;
+		transform: translateZ(0);
+	}
+	
+	/* Hide scrollbars on mobile but keep functionality */
+	@media (max-width: 767px) {
+		.sidebar {
+			scrollbar-width: none; /* Firefox */
+			-ms-overflow-style: none; /* IE and Edge */
+		}
+		
+		.sidebar::-webkit-scrollbar {
+			display: none; /* Chrome, Safari, Opera */
+		}
+		
+		/* Animate content when it first appears */
+		.sidebar > * {
+			animation: fadeIn 0.5s ease-out forwards;
+			opacity: 0;
+		}
+		
+		@keyframes fadeIn {
+			0% { opacity: 0; transform: translateY(10px); }
+			100% { opacity: 1; transform: translateY(0); }
+		}
+		
+		/* Stagger the animations */
+		.sidebar > *:nth-child(1) { animation-delay: 0.05s; }
+		.sidebar > *:nth-child(2) { animation-delay: 0.1s; }
+		.sidebar > *:nth-child(3) { animation-delay: 0.15s; }
+		.sidebar > *:nth-child(4) { animation-delay: 0.2s; }
+		.sidebar > *:nth-child(5) { animation-delay: 0.25s; }
+		.sidebar > *:nth-child(6) { animation-delay: 0.3s; }
+		.sidebar > *:nth-child(7) { animation-delay: 0.35s; }
+	}
+	
+	/* Add a subtle bounce effect for interaction elements on mobile */
+	@media (max-width: 767px) {
+		button:active, a:active {
+			transform: scale(0.96);
+			transition: transform 0.1s ease;
+		}
+	}
+	
+	.tipo-pill {
+		transition: all 0.2s ease-in-out;
+		box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+		text-transform: capitalize;
 	}
 </style>

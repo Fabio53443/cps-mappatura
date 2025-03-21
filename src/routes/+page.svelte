@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import Map from '$lib/components/Map.svelte';
 	import LocationSidebar from '$lib/components/LocationSidebar.svelte';
+	import { tipoValues } from '$lib/config/tipoConfig';
 	
 	let locations = [];
 	let selectedLocation = null;
@@ -16,6 +17,101 @@
 	let showSearchResults = false;
 	let searchInput;
 	
+	// Filter functionality
+	let allLocations = []; // Store all locations unfiltered
+	let selectedTipos = [];
+	let selectedMunicipios = [];
+	let showTipoDropdown = false;
+	let showMunicipioDropdown = false;
+	let municipioValues = []; // Will be populated from data
+	
+	// Apply all filters (search + tipo + municipio)
+	$: filteredLocations = applyFilters(allLocations, searchTerm, selectedTipos, selectedMunicipios);
+	
+	// Always update the locations displayed on map when filters change
+	$: locations = filteredLocations;
+	
+	// Get unique municipio values from the data
+	function extractMunicipioValues(locations) {
+		const uniqueMunicipios = new Set();
+		locations.forEach(loc => {
+			if (loc.municipio) uniqueMunicipios.add(loc.municipio);
+		});
+		// Roman numerals are already stored in the database (I through XV)
+		return Array.from(uniqueMunicipios).sort((a, b) => {
+			// Convert Roman numerals to numbers for proper sorting
+			const romanToNum = (roman) => {
+				const map = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+				let num = 0;
+				for (let i = 0; i < roman.length; i++) {
+					const current = map[roman[i]];
+					const next = map[roman[i + 1]];
+					if (next && current < next) {
+						num -= current;
+					} else {
+						num += current;
+					}
+				}
+				return num;
+			};
+			return romanToNum(a) - romanToNum(b);
+		});
+	}
+	
+	// Apply all filters
+	function applyFilters(locations, term, tipos, municipios) {
+		let result = [...locations];
+		
+		// Apply search term filter
+		if (term && term.length >= 2) {
+			const searchLower = term.toLowerCase();
+			result = result.filter(loc => 
+				loc.name.toLowerCase().includes(searchLower) || 
+				(loc.description && loc.description.toLowerCase().includes(searchLower)) ||
+				(loc.street && loc.street.toLowerCase().includes(searchLower)) ||
+				(loc.municipio && loc.municipio.toLowerCase().includes(searchLower))
+			);
+		}
+		
+		// Apply tipo filter
+		if (tipos.length > 0) {
+			result = result.filter(loc => tipos.includes(loc.tipo));
+		}
+		
+		// Apply municipio filter
+		if (municipios.length > 0) {
+			result = result.filter(loc => municipios.includes(loc.municipio));
+		}
+		
+		return result;
+	}
+	
+	// Toggle tipo selection
+	function toggleTipo(tipo) {
+		if (selectedTipos.includes(tipo)) {
+			selectedTipos = selectedTipos.filter(t => t !== tipo);
+		} else {
+			selectedTipos = [...selectedTipos, tipo];
+		}
+	}
+	
+	// Toggle municipio selection
+	function toggleMunicipio(municipio) {
+		if (selectedMunicipios.includes(municipio)) {
+			selectedMunicipios = selectedMunicipios.filter(m => m !== municipio);
+		} else {
+			selectedMunicipios = [...selectedMunicipios, municipio];
+		}
+	}
+	
+	// Clear all filters
+	function clearFilters() {
+		selectedTipos = [];
+		selectedMunicipios = [];
+		searchTerm = '';
+		showSearchResults = false;
+	}
+	
 	function handleSearch(event) {
 		searchTerm = event.target.value;
 		
@@ -27,7 +123,7 @@
 		
 		// Filter locations that match the search term
 		const term = searchTerm.toLowerCase();
-		searchResults = locations
+		searchResults = allLocations
 			.filter(loc => 
 				loc.name.toLowerCase().includes(term) || 
 				(loc.description && loc.description.toLowerCase().includes(term)) ||
@@ -48,7 +144,31 @@
 	function handleClickOutside(event) {
 		if (searchInput && !searchInput.contains(event.target) && !event.target.closest('.search-results')) {
 			showSearchResults = false;
+			}
+		
+		// Close tipo dropdown if clicking outside
+		if (!event.target.closest('.tipo-dropdown') && !event.target.closest('.tipo-dropdown-button')) {
+			showTipoDropdown = false;
 		}
+		
+		// Close municipio dropdown if clicking outside
+		if (!event.target.closest('.municipio-dropdown') && !event.target.closest('.municipio-dropdown-button')) {
+			showMunicipioDropdown = false;
+		}
+	}
+	
+	// Back to top functionality
+	let showBackToTop = false;
+	
+	function scrollToTop() {
+		window.scrollTo({
+			top: 0,
+			behavior: 'smooth'
+		});
+	}
+	
+	function handleScroll() {
+		showBackToTop = window.scrollY > 300;
 	}
 	
 	onMount(async () => {
@@ -56,8 +176,12 @@
 		try {
 			const response = await fetch('/api/locations');
 			if (!response.ok) throw new Error('Failed to load locations');
-			locations = await response.json();
+			allLocations = await response.json();
+			locations = allLocations; // Initially show all locations
 			console.log('Locations loaded:', locations.length);
+			
+			// Extract unique municipio values
+			municipioValues = extractMunicipioValues(allLocations);
 			
 			// Check if there's a location ID in the URL
 			const params = new URLSearchParams(window.location.search);
@@ -78,10 +202,12 @@
 			
 			document.addEventListener('location-selected', handleLocationSelected);
 			document.addEventListener('click', handleClickOutside);
+			window.addEventListener('scroll', handleScroll);
 			
 			return () => {
 				document.removeEventListener('location-selected', handleLocationSelected);
 				document.removeEventListener('click', handleClickOutside);
+				window.removeEventListener('scroll', handleScroll);
 			};
 		} catch (err) {
 			error = err.message;
@@ -119,32 +245,190 @@
 <div class="relative">
 	<h2 class="text-2xl font-bold mb-4">Scopri gli spazi dedicati ai giovani</h2>
 	
-	<!-- Search bar -->
-	<div class="relative mb-6 max-w-xl">
-		<input 
-			bind:this={searchInput}
-			type="text" 
-			placeholder="Cerca per nome, indirizzo o municipio..." 
-			class="w-full px-4 py-2 border border-gray-300 rounded-md"
-			value={searchTerm}
-			on:input={handleSearch}
-			on:focus={() => showSearchResults = searchResults.length > 0}
-		/>
+	<!-- Search and filter bar -->
+	<div class="flex flex-col lg:flex-row gap-3 mb-6">
+		<!-- Search bar - removed max-w-xl to allow full expansion -->
+		<div class="relative flex-grow">
+			<input 
+				bind:this={searchInput}
+				type="text" 
+				placeholder="Cerca per nome, indirizzo o municipio..." 
+				class="w-full px-4 py-2 border border-gray-300 rounded-md"
+				value={searchTerm}
+				on:input={handleSearch}
+				on:focus={() => showSearchResults = searchResults.length > 0}
+			/>
+			
+			{#if showSearchResults}
+				<div class="search-results absolute z-20 mt-1 w-full bg-white shadow-lg rounded-md overflow-hidden">
+					{#each searchResults as result}
+						<button 
+							class="w-full px-4 py-2 text-left hover:bg-gray-100 transition-colors flex flex-col"
+							on:click={() => selectLocation(result)}
+						>
+							<span class="font-medium">{result.name}</span>
+							{#if result.description}
+								<span class="text-xs text-gray-500 truncate">{result.description}</span>
+							{/if}
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
 		
-		{#if showSearchResults}
-			<div class="search-results absolute z-20 mt-1 w-full bg-white shadow-lg rounded-md overflow-hidden">
-				{#each searchResults as result}
-					<button 
-						class="w-full px-4 py-2 text-left hover:bg-gray-100 transition-colors flex flex-col"
-						on:click={() => selectLocation(result)}
-					>
-						<span class="font-medium">{result.name}</span>
-						{#if result.description}
-							<span class="text-xs text-gray-500 truncate">{result.description}</span>
-						{/if}
-					</button>
-				{/each}
+		<!-- Filter dropdowns - added whitespace-nowrap to prevent wrapping -->
+		<div class="flex gap-2 whitespace-nowrap">
+			<!-- Tipo filter dropdown -->
+			<div class="relative">
+				<button 
+					class="tipo-dropdown-button flex items-center px-4 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50"
+					on:click={() => showTipoDropdown = !showTipoDropdown}
+				>
+					<span>Tipo</span>
+					{#if selectedTipos.length > 0}
+						<span class="ml-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+							{selectedTipos.length}
+						</span>
+					{/if}
+					<svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+					</svg>
+				</button>
+				
+				{#if showTipoDropdown}
+					<div class="tipo-dropdown absolute mt-1 z-20 w-64 bg-white shadow-lg rounded-md overflow-hidden border border-gray-200">
+						<div class="p-2 border-b border-gray-200 flex justify-between items-center">
+							<span class="font-medium">Filtra per tipo</span>
+							{#if selectedTipos.length > 0}
+								<button 
+									class="text-xs text-blue-500 hover:text-blue-700" 
+									on:click={() => selectedTipos = []}
+								>
+									Cancella
+								</button>
+							{/if}
+						</div>
+						<div class="max-h-60 overflow-y-auto p-2">
+							{#each tipoValues as tipo}
+								<div class="flex items-center py-1">
+									<input 
+										type="checkbox" 
+										id={`tipo-${tipo}`} 
+										class="mr-2"
+										checked={selectedTipos.includes(tipo)}
+										on:change={() => toggleTipo(tipo)}
+									/>
+									<label for={`tipo-${tipo}`} class="select-none text-sm">{tipo}</label>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
 			</div>
+			
+			<!-- Municipio filter dropdown -->
+			<div class="relative">
+				<button 
+					class="municipio-dropdown-button flex items-center px-4 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50"
+					on:click={() => showMunicipioDropdown = !showMunicipioDropdown}
+				>
+					<span>Municipio</span>
+					{#if selectedMunicipios.length > 0}
+						<span class="ml-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+							{selectedMunicipios.length}
+						</span>
+					{/if}
+					<svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+					</svg>
+				</button>
+				
+				{#if showMunicipioDropdown}
+					<div class="municipio-dropdown absolute mt-1 z-20 w-64 bg-white shadow-lg rounded-md overflow-hidden border border-gray-200">
+						<div class="p-2 border-b border-gray-200 flex justify-between items-center">
+							<span class="font-medium">Filtra per municipio</span>
+							{#if selectedMunicipios.length > 0}
+								<button 
+									class="text-xs text-blue-500 hover:text-blue-700" 
+									on:click={() => selectedMunicipios = []}
+								>
+									Cancella
+								</button>
+							{/if}
+						</div>
+						<div class="max-h-60 overflow-y-auto p-2">
+							{#each municipioValues as municipio}
+								<div class="flex items-center py-1">
+									<input 
+										type="checkbox" 
+										id={`municipio-${municipio}`} 
+										class="mr-2"
+										checked={selectedMunicipios.includes(municipio)}
+										on:change={() => toggleMunicipio(municipio)}
+									/>
+									<label for={`municipio-${municipio}`} class="select-none text-sm">Municipio {municipio}</label>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+			</div>
+			
+			<!-- Clear filters button (shown only when filters are active) -->
+			{#if selectedTipos.length > 0 || selectedMunicipios.length > 0 || searchTerm}
+				<button 
+					class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors flex items-center"
+					on:click={clearFilters}
+				>
+					<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+					Cancella filtri
+				</button>
+			{/if}
+		</div>
+	</div>
+	
+	<!-- Filter summary (shows active filters) -->
+	{#if selectedTipos.length > 0 || selectedMunicipios.length > 0}
+		<div class="mb-4 flex flex-wrap gap-2">
+			{#each selectedTipos as tipo}
+				<div class="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 text-sm rounded-full">
+					<span>{tipo}</span>
+					<button 
+						class="ml-1" 
+						on:click={() => toggleTipo(tipo)} 
+						aria-label={`Remove ${tipo} filter`}
+					>
+						<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+							<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+						</svg>
+					</button>
+				</div>
+			{/each}
+			
+			{#each selectedMunicipios as municipio}
+				<div class="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 text-sm rounded-full">
+					<span>Municipio {municipio}</span>
+					<button 
+						class="ml-1" 
+						on:click={() => toggleMunicipio(municipio)} 
+						aria-label={`Remove Municipio ${municipio} filter`}
+					>
+						<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+							<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+						</svg>
+					</button>
+				</div>
+			{/each}
+		</div>
+	{/if}
+	
+	<!-- Results counter -->
+	<div class="mb-4 text-sm text-gray-500">
+		{locations.length} {locations.length === 1 ? 'spazio trovato' : 'spazi trovati'}
+		{#if locations.length !== allLocations.length}
+			<span> (su {allLocations.length} totali)</span>
 		{/if}
 	</div>
 	
@@ -160,16 +444,17 @@
 			<p class="ml-2">Caricamento in corso...</p>
 		</div>
 	{:else}
-		<div class="lg:flex gap-4 h-[70vh]">
+		<div class="lg:flex gap-4 h-[70vh] relative">
 			<div class={`map-container w-full ${isSidebarOpen ? 'lg:w-2/3' : 'w-full'} ${isSidebarOpen && 'hidden lg:block'}`}>
 				<Map 
 					{locations} 
 					onMarkerClick={handleMarkerClick}
+					selectedId={selectedLocation?.id}
 				/>
 			</div>
 			
 			{#if isSidebarOpen}
-				<div class="sidebar-container w-full lg:w-1/3 h-full mt-4 lg:mt-0">
+				<div class="sidebar-container w-full lg:w-1/3 h-full mt-4 lg:mt-0 mobile-animate-in">
 					<LocationSidebar 
 						location={selectedLocation} 
 						images={locationImages} 
@@ -181,14 +466,96 @@
 	{/if}
 </div>
 
+<!-- Back to top button -->
+{#if showBackToTop}
+	<button 
+		class="back-to-top-btn fixed bottom-6 right-6 bg-custom-blue hover:bg-custom-blue-dark text-white rounded-full p-3 shadow-lg transition-all z-30 focus:outline-none focus:ring-2 focus:ring-custom-blue-light"
+		on:click={scrollToTop}
+		aria-label="Torna in cima"
+	>
+		<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+		</svg>
+	</button>
+{/if}
+
 <style>
 	.map-container {
-		transition: width 0.3s ease-in-out;
+		transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		will-change: width;
+		transform: translateZ(0);
+	}
+	
+	.sidebar-container {
+		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		will-change: transform, opacity;
+		transform: translateZ(0);
 	}
 	
 	.search-results {
 		max-height: 300px;
 		overflow-y: auto;
 		border: 1px solid #e2e8f0;
+	}
+	
+	/* Mobile animations */
+	@media (max-width: 1023px) {
+		.mobile-animate-in {
+			animation: slideInUp 0.4s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+			will-change: transform, opacity;
+		}
+		
+		@keyframes slideInUp {
+			from {
+				transform: translateY(20px);
+				opacity: 0;
+			}
+			to {
+				transform: translateY(0);
+				opacity: 1;
+			}
+		}
+	}
+	
+	/* Dropdown styles */
+	.municipio-dropdown, .tipo-dropdown {
+		max-height: 300px;
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+	}
+	
+	/* Custom checkbox styles */
+	input[type="checkbox"] {
+		accent-color: #3b82f6;
+		width: 16px;
+		height: 16px;
+	}
+	
+	/* Back to top button animation */
+	.back-to-top-btn {
+		animation: fadeIn 0.3s ease-in-out;
+	}
+	
+	@keyframes fadeIn {
+		from {
+			opacity: 0;
+			transform: translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+	
+	/* Custom color for back to top button */
+	.bg-custom-blue {
+		background-color: #3059a7;
+	}
+	
+	.bg-custom-blue-dark:hover {
+		background-color: #254780; /* Darker shade for hover */
+	}
+	
+	.focus\:ring-custom-blue-light:focus {
+		--tw-ring-color: rgba(48, 89, 167, 0.5); /* Lighter version with opacity for focus ring */
 	}
 </style>

@@ -2,32 +2,29 @@
   import { onMount } from 'svelte';
   
   let projectData = {
-    title: "CPS Mappatura",
-    subtitle: "Centri di Produzione del Sapere",
-    description: "Un progetto per mappare, connettere e valorizzare i centri di produzione del sapere in Italia",
+    title: "I Nostri Spazi",
+    subtitle: "Spazi per i Giovani e Diritto allo Studio",
+    description: "Un progetto della Consulta Provinciale degli Studenti di Roma per mappare e valorizzare gli spazi dedicati ai giovani",
     sections: [
       {
         title: "Il Progetto",
-        content: "CPS Mappatura è un'iniziativa che mira a identificare e connettere i Centri di Produzione del Sapere presenti sul territorio italiano. Questi centri rappresentano nodi fondamentali nella rete della conoscenza contemporanea, spazi di ricerca, innovazione e condivisione."
+        content: "I Nostri Spazi è un'iniziativa creata dalla Commissione 'Diritto allo Studio' della Consulta Provinciale degli Studenti di Roma, in collaborazione con il Comune di Roma. Il progetto mira a identificare e connettere gli spazi dedicati ai giovani presenti sul territorio romano."
       },
       {
         title: "Obiettivi",
-        content: "Mappare i centri esistenti, analizzare le loro interconnessioni, facilitare lo scambio di conoscenze e creare una piattaforma accessibile per ricercatori, studenti e cittadini interessati alla produzione culturale e scientifica."
+        content: "Mappare i Centri di Aggregazione e gli spazi studio esistenti, analizzare la loro distribuzione sul territorio, migliorare l'accesso allo studio e fornire strumenti utili per supportare gli studenti della provincia di Roma."
       },
-      {
-        title: "Metodologia",
-        content: "Il progetto utilizza un approccio misto, combinando analisi dati, ricerca qualitativa e strumenti di visualizzazione. La raccolta dati avviene attraverso questionari, interviste e analisi documentale, mentre la piattaforma web permette di visualizzare e interrogare i risultati."
-      },
+      
       {
         title: "Impatto",
-        content: "CPS Mappatura contribuisce a democratizzare l'accesso alla conoscenza, a valorizzare centri di ricerca meno noti e a favorire collaborazioni interdisciplinari. La mappa prodotta rappresenta uno strumento strategico per policy maker, istituzioni culturali e comunità scientifica."
+        content: "CPS Mappatura Roma vuole democratizzare l'accesso agli spazi di studio e aggregazione, valorizzando centri meno conosciuti e favorendo la partecipazione giovanile. La mappa prodotta rappresenta uno strumento concreto per studenti, famiglie e istituzioni educative della provincia."
       }
     ],
     stats: [
-      { value: "150+", label: "Centri mappati" },
-      { value: "35", label: "Provincie coinvolte" },
-      { value: "12", label: "Ambiti di ricerca" },
-      { value: "4.500", label: "Ricercatori connessi" }
+      { value: "85+", label: "Spazi mappati" },
+      { value: "15", label: "Municipi coinvolti" },
+      { value: "8", label: "Tipologie di spazi" },
+      { value: "3.200", label: "Studenti coinvolti" }
     ]
   };
   
@@ -50,7 +47,7 @@
     <p class="hero-description">{projectData.description}</p>
     <div class="hero-buttons">
       <a href="#overview" class="btn primary">Scopri il progetto</a>
-      <a href="/mappa" class="btn secondary">Esplora la mappa</a>
+      <a href="/" class="btn secondary">Esplora la mappa</a>
     </div>
   </div>
 </section>
