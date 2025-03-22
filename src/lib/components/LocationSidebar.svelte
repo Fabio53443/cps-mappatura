@@ -1,9 +1,12 @@
 <script>
 	import { getColorForTipo } from '$lib/config/tipoConfig';
+	import { createEventDispatcher } from 'svelte';
 	
 	export let location = null;
 	export let images = [];
 	export let onClose = () => {};
+	
+	const dispatch = createEventDispatcher();
 	
 	let currentImageIndex = 0;
 	
@@ -34,6 +37,11 @@
 			return url; // Return original string if URL parsing fails
 		}
 	}
+	
+	// Function to filter by tipo/category
+	function filterByTipo(tipo) {
+		dispatch('filter-tipo', { tipo });
+	}
 </script>
 
 {#if location}
@@ -42,12 +50,14 @@
 			<div>
 				<h2 class="text-xl font-bold">{location.name}</h2>
 				{#if location.tipo}
-					<div 
-						class="tipo-pill inline-block px-3 py-1 mt-2 rounded-full text-white text-xs font-medium"
+					<button 
+						class="tipo-pill inline-block px-3 py-1 mt-2 rounded-full text-white text-xs font-medium hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-offset-2"
 						style="background-color: {getColorForTipo(location.tipo)};"
+						on:click={() => filterByTipo(location.tipo)}
+						aria-label="Filtra per {location.tipo}"
 					>
 						{location.tipo}
-					</div>
+					</button>
 				{/if}
 			</div>
 			<button 
@@ -258,5 +268,6 @@
 		transition: all 0.2s ease-in-out;
 		box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 		text-transform: capitalize;
+		cursor: pointer;
 	}
 </style>
