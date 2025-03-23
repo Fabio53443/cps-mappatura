@@ -11,6 +11,7 @@
     let map;
     let resizeObserver;
     let isMapInitialized = false;
+    let isAnimating = false; // Track animation state
     
     // Track locations for change detection
     let previousLocations = [];
@@ -78,11 +79,57 @@
         map.setPaintProperty('unclustered-point', 'circle-radius', sizeExpression);
     }
     
-    // Export resize method for parent component
+    // Improved resize method with debouncing to prevent flashing
+    let resizeTimeout;
     export function resize() {
-        if (map) {
+        if (!map) return;
+        
+        // Clear any existing resize timeout
+        clearTimeout(resizeTimeout);
+        
+        // Don't resize during animations
+        if (isAnimating) return;
+        
+        // Delay the resize slightly to let DOM updates complete
+        resizeTimeout = setTimeout(() => {
+            // Preserve the current center and zoom
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            
+            // Perform the resize
             map.resize();
-        }
+            
+            // Restore view state after resize
+            map.jumpTo({
+                center: center,
+                zoom: zoom
+            });
+        }, 50);
+    }
+    
+    // Smooth fly to a location with proper animation handling
+    function flyToLocation(longitude, latitude, zoom) {
+        if (!map) return;
+        
+        // Set animating flag
+        isAnimating = true;
+        
+        // Keep current zoom if not specified
+        const targetZoom = zoom || map.getZoom();
+        
+        // Use flyTo with better easing
+        map.flyTo({
+            center: [longitude, latitude],
+            zoom: targetZoom,
+            speed: 0.8, // slower for smoother animation
+            curve: 1.5, // more natural animation curve
+            essential: true
+        });
+        
+        // Clear animation flag when done
+        map.once('moveend', () => {
+            isAnimating = false;
+        });
     }
     
     onMount(() => {
@@ -95,7 +142,8 @@
             center: [12.4964, 41.9028], // Center of Rome
             zoom: 11,
             minZoom: 8,
-            preserveDrawingBuffer: true
+            preserveDrawingBuffer: true,
+            renderWorldCopies: false // Prevent duplicate world copies
         });
         
         // Add navigation controls
@@ -195,18 +243,27 @@
                 map.getCanvas().style.cursor = '';
             });
             
-            // Handle point clicks
+            // Improved point click handler
             map.on('click', 'unclustered-point', (e) => {
                 const id = e.features[0].properties.id;
                 const location = locations.find(loc => loc.id === id);
                 
                 if (location) {
+                    // Set selectedId to trigger styling update
                     selectedId = id;
-                    onMarkerClick(location);
+                    
+                    // Fly to location first with proper animation
+                    flyToLocation(location.longitude, location.latitude, 13);
+                    
+                    // Call click handler after the animation has started
+                    // This prevents layout changes during animation start
+                    setTimeout(() => {
+                        onMarkerClick(location);
+                    }, 50);
                 }
             });
             
-            // Clean cluster click handler without debug logging
+            // Improved cluster click handler
             map.on('click', 'clusters', function(e) {
                 const feature = e.features[0];
                 const coordinates = feature.geometry.coordinates;
@@ -215,25 +272,31 @@
                 map.getCanvas().style.cursor = 'wait';
                 
                 try {
-                    // Simpler approach - just increase zoom directly
+                    // Get current zoom and calculate target zoom
                     const currentZoom = map.getZoom();
                     const newZoom = Math.min(currentZoom + 2, 19); // Zoom in by 2 levels
                     
-                    // Use flyTo for reliable animation
+                    // Set animation flag
+                    isAnimating = true;
+                    
+                    // Use flyTo with better animation parameters
                     map.flyTo({
                         center: coordinates,
                         zoom: newZoom,
-                        speed: 0.8,
+                        speed: 0.7,
+                        curve: 1.5,
                         essential: true
                     });
                     
                     // Reset cursor when animation completes
-                    setTimeout(() => {
+                    map.once('moveend', () => {
                         map.getCanvas().style.cursor = '';
-                    }, 300);
+                        isAnimating = false;
+                    });
                 } catch (error) {
-                    // Reset cursor if there's an error
+                    // Reset cursor and animation flag if there's an error
                     map.getCanvas().style.cursor = '';
+                    isAnimating = false;
                 }
             });
             
@@ -245,14 +308,21 @@
             previousLocations = locations.map(l => l.id).sort();
         });
         
-        // Handle resize events
+        // Improved resize observer with debouncing
         resizeObserver = new ResizeObserver(() => {
-            if (map) map.resize();
+            if (!map || isAnimating) return; // Skip during animations
+            
+            // Debounce resize events to prevent rapid consecutive calls
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (map) map.resize();
+            }, 100);
         });
         
         resizeObserver.observe(mapContainer);
         
         return () => {
+            clearTimeout(resizeTimeout);
             if (resizeObserver) {
                 resizeObserver.disconnect();
             }
@@ -263,6 +333,7 @@
     });
     
     onDestroy(() => {
+        clearTimeout(resizeTimeout);
         if (resizeObserver) {
             resizeObserver.disconnect();
         }
@@ -270,6 +341,16 @@
             map.remove();
         }
     });
+    
+    // Method to center on selected location if available
+    export function centerOnSelected() {
+        if (!map || !selectedId) return;
+        
+        const selectedLocation = locations.find(loc => loc.id === selectedId);
+        if (selectedLocation) {
+            flyToLocation(selectedLocation.longitude, selectedLocation.latitude);
+        }
+    }
 </script>
 
 <div class="map-container w-full h-full" bind:this={mapContainer}></div>
@@ -281,6 +362,9 @@
         border-radius: 8px;
         overflow: hidden;
         will-change: transform;
+        /* Add hardware acceleration */
+        transform: translateZ(0);
+        backface-visibility: hidden;
     }
     
     @media (max-width: 768px) {
