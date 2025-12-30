@@ -387,9 +387,17 @@ export async function GET() {
 		
 		// Insert images
 		for (const img of sampleImages) {
+			// Derive filename and key from URL
+			const urlObj = new URL(img.url.replace('hthttps', 'https'));
+			const filename = urlObj.pathname.split('/').pop() || 'image.jpg';
+			const key = filename;
 			await db.insert(image).values({
 				locationId: locationResults[img.locationIndex].id,
-				url: img.url,
+				key,
+				url: img.url.replace('hthttps', 'https'),
+				filename,
+				contentType: 'image/jpeg',
+				size: null, // or a fake value if you want
 				caption: img.caption
 			});
 		}

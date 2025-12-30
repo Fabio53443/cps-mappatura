@@ -1,9 +1,12 @@
 import { pgTable, serial, text, integer, doublePrecision, timestamp, json, pgEnum } from 'drizzle-orm/pg-core';
 
+export const userRole = pgEnum('user_role', ['admin', 'editor', 'viewer']);
+
 export const user = pgTable('user', {
 	id: serial('id').primaryKey(),
-	email: text('email').notNull(),
+	username: text('username').notNull().unique(),
 	hashedPassword: text('hashed_password').notNull(),
+	role: userRole('role').default('viewer').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	lastLogin: timestamp('last_login')
 });
@@ -32,8 +35,12 @@ export const location = pgTable('location', {
 
 export const image = pgTable('image', {
 	id: serial('id').primaryKey(),
-	locationId: integer('location_id').references(() => location.id).notNull(),
+	locationId: integer('location_id').references(() => location.id, { onDelete: 'cascade' }).notNull(),
+	key: text('key').notNull(), // MinIO object key
 	url: text('url').notNull(),
+	filename: text('filename'), // Original filename
+	contentType: text('content_type'),
+	size: integer('size'), // File size in bytes
 	caption: text('caption'),
 	createdAt: timestamp('created_at').defaultNow().notNull()
 });

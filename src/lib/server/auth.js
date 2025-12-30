@@ -9,8 +9,8 @@ import { json } from '@sveltejs/kit';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-for-development-only';
 const JWT_EXPIRES_IN = '24h';
 
-export async function verifyCredentials(email, password) {
-  const users = await db.select().from(user).where(eq(user.email, email));
+export async function verifyCredentials(username, password) {
+  const users = await db.select().from(user).where(eq(user.username, username));
   
   if (users.length === 0) {
     return null;
@@ -30,13 +30,14 @@ export async function verifyCredentials(email, password) {
   
   return {
     id: foundUser.id,
-    email: foundUser.email
+    username: foundUser.username,
+    role: foundUser.role
   };
 }
 
 export function createToken(userData) {
   return jwt.sign(
-    { userId: userData.id, email: userData.email },
+    { userId: userData.id, username: userData.username, role: userData.role },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
@@ -73,24 +74,26 @@ export async function validateUser(request) {
   
   return {
     id: decodedToken.userId,
-    email: decodedToken.email
+    username: decodedToken.username,
+    role: decodedToken.role || users[0].role
   };
 }
 
 // Helper to create a new user (for initial setup or testing)
-export async function createUser(email, password) {
+export async function createUser(username, password, role = 'viewer') {
   // Check if the user already exists
-  const existingUsers = await db.select().from(user).where(eq(user.email, email));
+  const existingUsers = await db.select().from(user).where(eq(user.username, username));
   if (existingUsers.length > 0) {
-    throw new Error('User with this email already exists');
+    throw new Error('User with this username already exists');
   }
   
   const hashedPassword = await bcrypt.hash(password, 10);
   
   const result = await db.insert(user)
     .values({
-      email,
+      username,
       hashedPassword,
+      role,
       createdAt: new Date()
     })
     .returning();
@@ -100,11 +103,24 @@ export async function createUser(email, password) {
 
 // Middleware to check authentication
 export async function requireAuth(request) {
-  const user = await validateUser(request);
+  const userData = await validateUser(request);
   
-  if (!user) {
+  if (!userData) {
     return json({ error: 'Unauthorized' }, { status: 401 });
   }
   
-  return user;
+  return userData;
+}
+
+// Require a specific role (or array of roles)
+export async function requireRole(request, roles) {
+  const userData = await validateUser(request);
+  if (!userData) {
+    return json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const allowed = Array.isArray(roles) ? roles : [roles];
+  if (!allowed.includes(userData.role)) {
+    return json({ error: 'Forbidden' }, { status: 403 });
+  }
+  return userData;
 }

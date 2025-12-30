@@ -5,6 +5,7 @@
 	export let location = null;
 	export let images = [];
 	export let onClose = () => {};
+	export let onShare = () => {};
 	
 	const dispatch = createEventDispatcher();
 	
@@ -45,7 +46,7 @@
 </script>
 
 {#if location}
-	<div class="sidebar bg-white p-5 overflow-y-auto shadow-lg rounded-lg">
+	<div class="sidebar bg-white p-5 overflow-y-auto h-full">
 		<div class="flex justify-between items-start mb-2">
 			<div>
 				<h2 class="text-xl font-bold">{location.name}</h2>
@@ -60,15 +61,28 @@
 					</button>
 				{/if}
 			</div>
-			<button 
-				class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
-				on:click={onClose}
-				aria-label="Close"
-			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-				</svg>
-			</button>
+			<div class="flex items-center gap-2">
+				<button 
+					class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+					on:click={onShare}
+					aria-label="Condividi"
+					title="Condividi"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+					</svg>
+				</button>
+				<button 
+					class="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+					on:click={onClose}
+					aria-label="Chiudi"
+					title="Chiudi"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+					</svg>
+				</button>
+			</div>
 		</div>
 		
 		{#if hasImages}

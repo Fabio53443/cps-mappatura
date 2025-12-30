@@ -6,6 +6,7 @@
     export let locations = [];
     export let onMarkerClick = (location) => {};
     export let selectedId = null;
+    export let getMapOffset = () => [0, 0]; // Callback to get current offset based on UI state
     
     let mapContainer;
     let map;
@@ -17,9 +18,16 @@
     let previousLocations = [];
     
     // Watch for changes to selectedId to update styling
-    $: if (map && isMapInitialized && map.getSource('locations')) {
+    $: if (map && isMapInitialized && map.getSource('locations') && selectedId !== undefined) {
         updateSelectedPoint();
     }
+    
+    // Also trigger when selectedId becomes null (deselection)
+    $: selectedId, (() => {
+        if (map && isMapInitialized && map.getSource('locations')) {
+            updateSelectedPoint();
+        }
+    })();
     
     // Watch for changes in locations to update the map
     $: if (map && isMapInitialized && 
@@ -54,29 +62,44 @@
     function updateSelectedPoint() {
         if (!map || !map.getSource('locations')) return;
         
+        // Keep original tipo-based colors for all points
         const colorExpression = [
-            'case',
-            ['==', ['get', 'id'], selectedId],
-            '#3b82f6', // Blue for selected point
-            [
-                'match',
-                ['get', 'tipo'],
-                // Add each tipo with its color
-                ...Object.entries(tipoColorMap).flatMap(([tipo, color]) => [tipo, color]),
-                // Default color for any other values
-                defaultColor
-            ]
+            'match',
+            ['get', 'tipo'],
+            // Add each tipo with its color
+            ...Object.entries(tipoColorMap).flatMap(([tipo, color]) => [tipo, color]),
+            // Default color for any other values
+            defaultColor
         ];
+        
+        // Use -1 as a safe fallback when nothing is selected (no valid ID will match -1)
+        const safeSelectedId = selectedId ?? -1;
         
         const sizeExpression = [
             'case',
-            ['==', ['get', 'id'], selectedId],
-            15, // Bigger radius for selected
+            ['==', ['get', 'id'], safeSelectedId],
+            16, // Bigger radius for selected
             10  // Default radius for others
+        ];
+        
+        const strokeWidthExpression = [
+            'case',
+            ['==', ['get', 'id'], safeSelectedId],
+            5, // Thicker stroke for selected
+            2  // Default stroke for others
+        ];
+        
+        const strokeColorExpression = [
+            'case',
+            ['==', ['get', 'id'], safeSelectedId],
+            '#1e293b', // Dark slate stroke for selected (high contrast)
+            '#ffffff'  // White stroke for others
         ];
         
         map.setPaintProperty('unclustered-point', 'circle-color', colorExpression);
         map.setPaintProperty('unclustered-point', 'circle-radius', sizeExpression);
+        map.setPaintProperty('unclustered-point', 'circle-stroke-width', strokeWidthExpression);
+        map.setPaintProperty('unclustered-point', 'circle-stroke-color', strokeColorExpression);
     }
     
     // Improved resize method with debouncing to prevent flashing
@@ -108,7 +131,7 @@
     }
     
     // Smooth fly to a location with proper animation handling
-    function flyToLocation(longitude, latitude, zoom) {
+    function flyToLocation(longitude, latitude, zoom, offset = [0, 0]) {
         if (!map) return;
         
         // Set animating flag
@@ -121,6 +144,7 @@
         map.flyTo({
             center: [longitude, latitude],
             zoom: targetZoom,
+            offset: offset, // [x, y] offset in pixels - positive y moves center up
             speed: 0.8, // slower for smoother animation
             curve: 1.5, // more natural animation curve
             essential: true
@@ -138,7 +162,7 @@
         // Create map
         map = new maplibregl.Map({
             container: mapContainer,
-            style: 'https://api.maptiler.com/maps/0195b586-7726-7e5a-9540-34bcd35b6fd1/style.json?key=smD4WHiCeTEFri6vpiIm',
+            style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=smD4WHiCeTEFri6vpiIm',
             center: [12.4964, 41.9028], // Center of Rome
             zoom: 11,
             minZoom: 8,
@@ -146,8 +170,8 @@
             renderWorldCopies: false // Prevent duplicate world copies
         });
         
-        // Add navigation controls
-        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+        // Add navigation controls at bottom-right
+        map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
         
         // Initialize map once it's loaded
         map.on('load', () => {
@@ -252,13 +276,14 @@
                     // Set selectedId to trigger styling update
                     selectedId = id;
                     
-                    // Fly to location first with proper animation
-                    flyToLocation(location.longitude, location.latitude, 13);
+                    // Call click handler first so the UI state updates
+                    // Then we can get the correct offset based on what panels will be open
+                    onMarkerClick(location);
                     
-                    // Call click handler after the animation has started
-                    // This prevents layout changes during animation start
+                    // Use a small delay to let the parent update UI state, then fly with correct offset
                     setTimeout(() => {
-                        onMarkerClick(location);
+                        const offset = getMapOffset();
+                        flyToLocation(location.longitude, location.latitude, 15, offset);
                     }, 50);
                 }
             });
@@ -348,7 +373,53 @@
         
         const selectedLocation = locations.find(loc => loc.id === selectedId);
         if (selectedLocation) {
-            flyToLocation(selectedLocation.longitude, selectedLocation.latitude);
+            // Use the offset callback to get current offset based on UI state
+            const offset = getMapOffset();
+            flyToLocation(selectedLocation.longitude, selectedLocation.latitude, null, offset);
+        }
+    }
+    
+    // Method to fly to a specific location (exported for external use)
+    // offset: [x, y] in pixels - positive y moves the center point UP on screen
+    export function flyTo(longitude, latitude, zoom = 15, offset = [0, 0]) {
+        if (!map) return;
+        flyToLocation(longitude, latitude, zoom, offset);
+    }
+    
+    // User location marker
+    let userMarker = null;
+    
+    // Method to show user's current location on the map
+    export function setUserLocation(latitude, longitude) {
+        if (!map) return;
+        
+        // Remove existing user marker if any
+        if (userMarker) {
+            userMarker.remove();
+        }
+        
+        // Create a custom element for the user marker
+        const el = document.createElement('div');
+        el.className = 'user-location-marker';
+        el.innerHTML = `
+            <div class="user-marker-pulse"></div>
+            <div class="user-marker-dot"></div>
+        `;
+        
+        // Create and add the marker
+        userMarker = new maplibregl.Marker({
+            element: el,
+            anchor: 'center'
+        })
+            .setLngLat([longitude, latitude])
+            .addTo(map);
+    }
+    
+    // Method to remove user location marker
+    export function clearUserLocation() {
+        if (userMarker) {
+            userMarker.remove();
+            userMarker = null;
         }
     }
 </script>
@@ -370,6 +441,108 @@
     @media (max-width: 768px) {
         .map-container {
             min-height: 300px;
+        }
+    }
+    
+    /* Custom MapLibre controls styling */
+    :global(.maplibregl-ctrl-group) {
+        background: white !important;
+        border-radius: 9999px !important;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+        border: none !important;
+        overflow: hidden;
+    }
+    
+    :global(.maplibregl-ctrl-group button) {
+        width: 36px !important;
+        height: 36px !important;
+        border: none !important;
+        background-color: white !important;
+        transition: background-color 0.15s ease;
+    }
+    
+    :global(.maplibregl-ctrl-group button:hover) {
+        background-color: #f3f4f6 !important;
+    }
+    
+    :global(.maplibregl-ctrl-group button + button) {
+        border-top: 1px solid #e5e7eb !important;
+    }
+    
+    /* Keep the default MapLibre icons but style them */
+    :global(.maplibregl-ctrl button .maplibregl-ctrl-icon) {
+        filter: brightness(0) saturate(100%) invert(21%) sepia(10%) saturate(697%) hue-rotate(182deg) brightness(95%) contrast(93%);
+    }
+    
+    /* Position controls with some margin from edges */
+    :global(.maplibregl-ctrl-bottom-right) {
+        right: 12px !important;
+        bottom: 24px !important;
+    }
+    
+    /* Make the attribution text smaller */
+    :global(.maplibregl-ctrl-attrib) {
+        font-size: 9px !important;
+    }
+
+    @media (max-width: 768px) {
+        :global(.maplibregl-ctrl-bottom-right) {
+            right: 8px !important;
+            bottom: calc(120px + env(safe-area-inset-bottom)) !important; /* Above mobile filter bar */
+        }
+        
+        :global(.maplibregl-ctrl-group button) {
+            width: 40px !important;
+            height: 40px !important;
+        }
+        
+        :global(.maplibregl-ctrl-attrib) {
+            font-size: 8px !important;
+        }
+    }
+    
+    /* User location marker styles */
+    :global(.user-location-marker) {
+        position: relative;
+        width: 24px;
+        height: 24px;
+    }
+    
+    :global(.user-marker-dot) {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 14px;
+        height: 14px;
+        background-color: #3b82f6;
+        border: 3px solid white;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        z-index: 2;
+    }
+    
+    :global(.user-marker-pulse) {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 40px;
+        height: 40px;
+        background-color: rgba(59, 130, 246, 0.3);
+        border-radius: 50%;
+        animation: pulse 2s ease-out infinite;
+        z-index: 1;
+    }
+    
+    @keyframes pulse {
+        0% {
+            transform: translate(-50%, -50%) scale(0.5);
+            opacity: 1;
+        }
+        100% {
+            transform: translate(-50%, -50%) scale(1.5);
+            opacity: 0;
         }
     }
 </style>
